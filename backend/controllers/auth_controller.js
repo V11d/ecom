@@ -192,3 +192,8 @@ export const refresh_access_token = async (req, res) => {
         })
     }
 }
+
+export const user_profile = async (req, res) => {
+
+    // TODO
+}
