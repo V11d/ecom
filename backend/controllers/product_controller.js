@@ -1,203 +1,183 @@
-import Product from '../models/product_model.js'
+import { redis } from '../lib/redis.js'
 import cloudinary from '../lib/cloudinary.js'
-import { client } from '../lib/redis.js'
-import http_status from 'http-status'
+import Product from '../models/product_model.js'
+import httpStatus from 'http-status'
 
-export const get_all_products = async (req, res) => {
+export const getAllProducts = async (req, res) => {
 
-    // On;y admin can access this route
-    try {
-        const products = await Product.find({})
-        res.status(http_status.OK).json({
-            status: 'success',
-            data: {
-                products
-            }
+	try {
+		const products = await Product.find({})
+		res.json({ products })
+	} catch (error) {
+		console.log(`Error in get all products ${error.message}`)
+		res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            message: "Server error",
+            error: error.message
         })
-    } catch (error) {
-        console.log(`Error getting all products ${error.message}`)
-        res.status(http_status.INTERNAL_SERVER_ERROR).json({
-            status: 'error',
-            message: error.message
-        })
-    }
+	}
 }
 
-export const get_featured_products = async (req, res) => {
+export const getFeaturedProducts = async (req, res) => {
 
-    try {
-        let featured_products = await client.get('featured_products')
-        if (featured_products) {
-            return res.status(http_status.OK).json({
-                status: 'success',
-                data: {
-                    products: JSON.parse(featured_products)
-                }
+	try {
+		let featuredProducts = await redis.get("featured_products")
+		if (featuredProducts) {
+			return res.json(JSON.parse(featuredProducts))
+		}
+
+		featuredProducts = await Product.find({ isFeatured: true }).lean()
+
+		if (!featuredProducts) {
+			return res.status(httpStatus.NOT_FOUND).json({
+                message: "No featured products found"
             })
-        }
-        featured_products = await Product.find({is_featured: true}).lean()
-        if (!featured_products) {
-            return res.status(http_status.NOT_FOUND).json({
-                status: 'error',
-                message: 'No featured products found'
-            })
-        }
-        await client.set('featured_products', JSON.stringify(featured_products))
-        res.status(http_status.OK).json({
-            status: 'success',
-            data: {
-                products: featured_products
-            }
+		}
+
+		// store in redis for future quick access
+		await redis.set("featured_products", JSON.stringify(featuredProducts))
+
+		res.json(featuredProducts)
+	} catch (error) {
+		console.log(`Error in get featured products ${error.message}`)
+		res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            message: "Server error",
+            error: error.message
         })
-    } catch (error) {
-        console.log(`Error getting featured products ${error.message}`)
-        res.status(http_status.INTERNAL_SERVER_ERROR).json({
-            status: 'error',
-            message: error.message
-        })
-    }
+	}
 }
 
-export const create_product = async (req, res) => {
+export const createProduct = async (req, res) => {
 
-    const {name, description, price, image, category} = req.body
-    try {
-        let cloudinary_res = null
-        if (image) {
-            cloudinary_res = await cloudinary.uploader.upload(image, {
-                folder: 'products',
-            })
-        }
-        const product = await Product.create({
-            name,
-            description,
-            price,
-            image: cloudinary_res?.secure_url || '',
-            category
+	try {
+		const { name, description, price, image, category } = req.body
+		let cloudinaryResponse = null
+		if (image) {
+			cloudinaryResponse = await cloudinary.uploader.upload(image, { folder: "products" })
+		}
+
+		const product = await Product.create({
+			name,
+			description,
+			price,
+			image: cloudinaryResponse?.secure_url ? cloudinaryResponse.secure_url : "",
+			category,
+		})
+
+		res.status(httpStatus.CREATED).json(product)
+	} catch (error) {
+		console.log(`Error in create product ${error.message}`)
+		res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            message: "Server error",
+            error: error.message
         })
-        res.status(http_status.CREATED).json({
-            status: 'success',
-            data: {
-                product
-            }
-        })
-    } catch (error) {
-        console.log(`Error creating product ${error.message}`);
-        res.status(http_status.INTERNAL_SERVER_ERROR).json({
-            status: 'error',
-            message: error.message
-        })
-    }
+	}
 }
 
-export const delete_product = async (req, res) => {
+export const deleteProduct = async (req, res) => {
 
-    const {id} = req.params
-    try {
-        const product = await Product.findById(id)
-        if (!product) {
-            return res.status(http_status.NOT_FOUND).json({
-                status: 'error',
-                message: 'Product not found'
+	try {
+		const product = await Product.findById(req.params.id)
+
+		if (!product) {
+			return res.status(httpStatus.NOT_FOUND).json({
+                message: "Product not found"
             })
-        }
-        if (product.image) {
-            const public_id = product.image.split('/').pop().split('.')[0]
-            await cloudinary.uploader.destroy(`products/${public_id}`)
-        }
-        await Product.findByIdAndDelete(id)
-    } catch (error) {
-        console.log(`Error deleting product ${error.message}`)
-        res.status(http_status.INTERNAL_SERVER_ERROR).json({
-            status: 'error',
-            message: error.message
+		}
+
+		if (product.image) {
+			const publicId = product.image.split("/").pop().split(".")[0]
+			try {
+				await cloudinary.uploader.destroy(`products/${publicId}`)
+				console.log("deleted image from cloduinary")
+			} catch (error) {
+				console.log(`Error deleting image from cloudinary ${error.message}`)
+			}
+		}
+
+		await Product.findByIdAndDelete(req.params.id)
+
+		res.json({ message: "Product deleted successfully" })
+	} catch (error) {
+		console.log(`Error in delete product ${error.message}`)
+		res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            message: "Server error",
+            error: error.message
         })
-    }
+	}
 }
 
-export const recommedned_products = async (req, res) => {
+export const getRecommendedProducts = async (req, res) => {
 
-    try {
-        const product = await Product.aggregate([
-            {$sample: {size: 3}},
-            {$project: {
-                _id: 1,
-                name: 1,
-                description: 1,
-                price: 1,
-                image: 1,
-                category: 1
-            }}
-        ])
-        res.status(http_status.OK).json({
-            status: 'success',
-            data: {
-                products: product
-            }
+	try {
+		const products = await Product.aggregate([
+			{
+				$sample: { size: 4 },
+			},
+			{
+				$project: {
+					_id: 1,
+					name: 1,
+					description: 1,
+					image: 1,
+					price: 1,
+				},
+			},
+		])
+
+		res.json(products)
+	} catch (error) {
+		console.log(`Error in get recommended products ${error.message}`)
+		res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            message: "Server error",
+            error: error.message
         })
-    } catch (error) {
-        console.log(`Error getting recommended products ${error.message}`)
-        res.status(http_status.INTERNAL_SERVER_ERROR).json({
-            status: 'error',
-            message: error.message
-        })
-    }
+	}
 }
 
-export const get_product_by_category = async (req, res) => {
+export const getProductsByCategory = async (req, res) => {
 
-    const {category} = req.params
-    try {
-        const products = await Product.find({category})
-        if (!products) {
-            return res.status(http_status.NOT_FOUND).json({
-                status: 'error',
-                message: 'No products found in this category'
-            })
-        }
-        res.status(http_status.OK).json({
-            status: 'success',
-            data: {
-                products
-            }
+	const { category } = req.params
+	try {
+		const products = await Product.find({ category })
+		res.json({ products })
+	} catch (error) {
+		console.log(`Error in get products by cat ${error.message}`)
+		res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            message: "Server error",
+            error: error.message
         })
-    } catch (error) {
-        console.log(`Error getting products by category ${error.message}`)
-        res.status(http_status.INTERNAL_SERVER_ERROR).json({
-            status: 'error',
-            message: error.message
-        })
-    }
+	}
 }
 
-export const toggle_featured_products = async (req, res) => {
+export const toggleFeaturedProduct = async (req, res) => {
 
-    const {id} = req.params
-    try {
-        const product = await Product.findById(id)
-        if (product) {
-            product.is_featured = !product.is_featured
-            await product.save()
-            // Cache the updated featured products
-            const featured_products = await Product.find({is_featured: true}).lean()
-            await client.set('featured_products', JSON.stringify(featured_products))
-            res.status(http_status.OK).json({
-                status: 'success',
-                data: {
-                    product
-                }
+	try {
+		const product = await Product.findById(req.params.id)
+		if (product) {
+			product.isFeatured = !product.isFeatured
+			const updatedProduct = await product.save()
+			await updateFeaturedProductsCache()
+			res.json(updatedProduct)
+		} else {
+			res.status(httpStatus.NOT_FOUND).json({
+                message: "Product not found"
             })
-        } else {
-            return res.status(http_status.NOT_FOUND).json({
-                status: 'error',
-                message: 'Product not found'
-            })
-        }
-    } catch (error) {
-        console.log(`Error toggling featured product ${error.message}`)
-        res.status(http_status.INTERNAL_SERVER_ERROR).json({
-            status: 'error',
-            message: error.message
+		}
+	} catch (error) {
+		console.log(`Error in toggle featured products ${error.message}`)
+		res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            message: "Server error",
+            error: error.message
         })
-    }
+	}
+}
+
+async function updateFeaturedProductsCache() {
+
+	try {
+		const featuredProducts = await Product.find({ isFeatured: true }).lean()
+		await redis.set("featured_products", JSON.stringify(featuredProducts))
+	} catch (error) {
+		console.log("error in update cache function")
+	}
 }

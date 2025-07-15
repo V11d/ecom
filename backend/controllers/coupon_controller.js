@@ -1,58 +1,50 @@
-import Coupon from "../models/coupon_model"
-import http_status from 'http-status'
+import Coupon from "../models/coupon_model.js"
+import httpStatus from "http-status"
 
-export const get_coupon = async (req, res) => {
+export const getCoupon = async (req, res) => {
 
-    try {
-        const coupon = await Coupon.findOne({user_id: req.user._id, is_active: true})
-        res.status(http_status.OK).json({
-            success: true,
-            coupon: coupon ? coupon : null
-        })
-    } catch (error) {
-        console.log(`Error fetching coupon ${error.message}`)
-        res.status(http_status.INTERNAL_SERVER_ERROR).json({
-            success: false,
-            message: 'Error fetching coupon',
+	try {
+		const coupon = await Coupon.findOne({ userId: req.user._id, isActive: true })
+		res.json(coupon || null)
+	} catch (error) {
+		console.log(`Error in get coupons ${error.message}`)
+		res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            message: "Server error",
             error: error.message
         })
-    }
+	}
 }
 
-export const validate_coupon = async (req, res) => {
+export const validateCoupon = async (req, res) => {
 
-    const {code} = req.body
-    try {
-        const coupon = await Coupon.findOne({code: code, is_active: true, user_id: req.user._id})
-        if (!coupon) {
-            return res.status(http_status.NOT_FOUND).json({
-                success: false,
-                message: 'Coupon not found or inactive'
+	try {
+		const { code } = req.body
+		const coupon = await Coupon.findOne({ code: code, userId: req.user._id, isActive: true })
+
+		if (!coupon) {
+			return res.status(httpStatus.NOT_FOUND).json({
+                message: "Coupon not found"
             })
-        }
-        // Checking for expiry date
-        if (coupon.expiry_date < new Date()) {
-            coupon.is_active = false
-            await coupon.save()
-            return res.status(http_status.BAD_REQUEST).json({
-                success: false,
-                message: 'Coupon has expired'
+		}
+
+		if (coupon.expirationDate < new Date()) {
+			coupon.isActive = false
+			await coupon.save()
+			return res.status(httpStatus.NOT_FOUND).json({
+                message: "Coupon expired"
             })
-        }
-        res.status(http_status.OK).json({
-            success: true,
-            message: 'Coupon is valid',
-            coupon: {
-                code: coupon.code,
-                discount: coupon.discount
-            }
-        })
-    } catch (error) {
-        console.log(`Error in validate coupon ${error.message}`)
-        res.status(http_status.INTERNAL_SERVER_ERROR).json({
-            success: false,
-            message: 'Error validating coupon',
+		}
+
+		res.json({
+			message: "Coupon is valid",
+			code: coupon.code,
+			discountPercentage: coupon.discountPercentage,
+		})
+	} catch (error) {
+		console.log(`Error in validate coupon ${error.message}`)
+		res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            message: "Server error",
             error: error.message
         })
-    }
+	}
 }

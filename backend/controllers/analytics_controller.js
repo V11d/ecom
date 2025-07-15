@@ -1,73 +1,79 @@
-import http_status from 'http-status'
-import User from '../models/user_model.js'
-import Product from '../models/product_model.js'
-import Order from '../models/order_model.js'
+import Order from "../models/order_model.js"
+import Product from "../models/product_model.js"
+import User from "../models/user_model.js"
 
-export const get_analytics = async () => {
+export const getAnalyticsData = async () => {
 
-    const total_users = await User.countDocuments({})
-    const total_products = await Product.countDocuments({})
-    const sales_data = await Order.aggregate([
-        {
-            $group: {
-                _id: null,
-                total_sales: { $sum: 1 },
-                total_revenue: { $sum: '$total_price' }
-            }
-        }
-    ])
-    const {total_sales, total_revenue} = sales_data[0] || { total_sales: 0, total_revenue: 0 }
+	const totalUsers = await User.countDocuments()
+	const totalProducts = await Product.countDocuments()
 
-    return {
-        users: total_users,
-        products: total_products,
-        total_sales,
-        total_revenue
-    }
+	const salesData = await Order.aggregate([
+		{
+			$group: {
+				_id: null,
+				totalSales: { $sum: 1 },
+				totalRevenue: { $sum: "$totalAmount" },
+			},
+		},
+	])
+
+	const { totalSales, totalRevenue } = salesData[0] || { totalSales: 0, totalRevenue: 0 }
+
+	return {
+		users: totalUsers,
+		products: totalProducts,
+		totalSales,
+		totalRevenue,
+	}
 }
 
-export const get_daily_sales_data = async (start_date, end_date) => {
+export const getDailySalesData = async (startDate, endDate) => {
 
-    const daily_sales_data = await Order.aggregate([
-        {
-            $match: {
-                createdAt: {
-                    $gte: start_date,
-                    $lte: end_date
-                }
-            }
-        },
-        {
-            $group: {
-                _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-                total_sales: { $sum: 1 },
-                total_revenue: { $sum: "$total_price" }
-            }
-        },
-        {
-            $sort: { _id: 1 }
-        }
-    ])
+	try {
+		const dailySalesData = await Order.aggregate([
+			{
+				$match: {
+					createdAt: {
+						$gte: startDate,
+						$lte: endDate,
+					},
+				},
+			},
+			{
+				$group: {
+					_id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+					sales: { $sum: 1 },
+					revenue: { $sum: "$totalAmount" },
+				},
+			},
+			{ $sort: { _id: 1 } },
+		])
 
-    const date_array = get_dates_in_range(start_date, end_date)
+		const dateArray = getDatesInRange(startDate, endDate)
 
-    return date_array.map(date => {
-        const found_data = daily_sales_data.find(item => item._id === date)
-        return {
-            date,
-            sales: found_data?.total_sales || 0,
-            revenue: found_data?.total_revenue || 0
-        }
-    })
+		return dateArray.map((date) => {
+			const foundData = dailySalesData.find((item) => item._id === date);
+
+			return {
+				date,
+				sales: foundData?.sales || 0,
+				revenue: foundData?.revenue || 0,
+			}
+		})
+	} catch (error) {
+		throw error
+	}
 }
 
-function get_dates_in_range(start_date, end_date) {
+function getDatesInRange(startDate, endDate) {
+    
+	const dates = []
+	let currentDate = new Date(startDate)
 
-    const dates = []
-    let current_date = new Date(start_date)
-    while (current_date <= end_date) {
-        dates.push(current_date.toISOString().split('T')[0])
-        current_date.setDate(current_date.getDate() + 1)
-    }
-    return dates
+	while (currentDate <= endDate) {
+		dates.push(currentDate.toISOString().split("T")[0])
+		currentDate.setDate(currentDate.getDate() + 1)
+	}
+
+	return dates
 }

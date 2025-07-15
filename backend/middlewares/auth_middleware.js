@@ -1,40 +1,52 @@
-import jwt from 'jsonwebtoken'
+import jwt from "jsonwebtoken"
 import User from '../models/user_model.js'
-import http_status from 'http-status'
+import httpStatus from 'http-status'
 
-export const protect_route = async (req, res, next) => {
+export const protectRoute = async (req, res, next) => {
+	try {
+		const accessToken = req.cookies.accessToken
 
-    try {
-        const access_token = req.cookies.access_token || req.headers.authorization?.split(' ')[1]
-        if (!access_token) {
-            return res.status(http_status.UNAUTHORIZED).json({
-                message: 'Unauthorized access, no token provided'
+		if (!accessToken) {
+			return res.status(httpStatus.UNAUTHORIZED).json({
+                message: "Unauthorized - No access token provided"
             })
-        }
-        const decoded = jwt.verify(access_token, process.env.ACCESS_TOKEN_SECRET)
-        const user = await User.findById(decoded.id).select('-password')
-        if (!user) {
-            return res.status(http_status.UNAUTHORIZED).json({
-                message: 'User does not exist'
-            })
-        }
+		}
 
-        req.user = user
-        next()
-    } catch (error) {
-        console.log(`Error in protect_route middleware ${error.message}`)
-        return res.status(http_status.UNAUTHORIZED).json({
-            message: 'Unauthorized access, invalid token'
+		try {
+			const decoded = jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET)
+			const user = await User.findById(decoded.userId).select("-password")
+
+			if (!user) {
+				return res.status(httpStatus.UNAUTHORIZED).json({
+                    message: "User not found"
+                })
+			}
+
+			req.user = user
+
+			next()
+		} catch (error) {
+			if (error.name === "TokenExpiredError") {
+				return res.status(httpStatus.UNAUTHORIZED).json({
+                    message: "Unauthorized - Access token expired"
+                })
+			}
+			throw error
+		}
+	} catch (error) {
+		console.log("Error in protectRoute middleware", error.message)
+		return res.status(httpStatus.UNAUTHORIZED).json({
+            message: "Unauthorized - Invalid access token"
         })
-    }
+	}
 }
 
-export const admin_route = (req, res, next) => {
-
-    if (req.user && req.user.role === 'admin') {
-        return next()
-    }
-    return res.status(http_status.FORBIDDEN).json({
-        message: 'Access denied, admin only'
-    })
+export const adminRoute = (req, res, next) => {
+	if (req.user && req.user.role === "admin") {
+		next()
+	} else {
+		return res.status(httpStatus.FORBIDDEN).json({
+            message: "Access denied - Admin only"
+        })
+	}
 }

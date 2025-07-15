@@ -1,19 +1,19 @@
 import express from 'express'
-import { add_to_cart,
-    get_all_cart_products,
-    remove_all_from_cart,
-    update_quantity 
+import { addToCart,
+    getCartProducts,
+    removeAllFromCart,
+    updateQuantity 
 } from '../controllers/cart_controller.js'
-import { protect_route } from '../middlewares/auth_middleware.js'
+import { protectRoute } from '../middlewares/auth_middleware.js'
 
 const router = express.Router()
 
-router.get('/', protect_route, get_all_cart_products)
+router.get('/', protectRoute, getCartProducts)
 
-router.post('/', protect_route, add_to_cart)
+router.post('/', protectRoute, addToCart)
 
-router.delete('/', protect_route, remove_all_from_cart)
+router.delete('/', protectRoute, removeAllFromCart)
 
-router.put('/:id', protect_route, update_quantity)
+router.put('/:id', protectRoute, updateQuantity)
 
 export default router

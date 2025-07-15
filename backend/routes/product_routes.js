@@ -1,28 +1,28 @@
 import express from 'express'
-import { create_product,
-    delete_product,
-    get_all_products,
-    get_featured_products,
-    get_product_by_category,
-    recommedned_products,
-    toggle_featured_products
+import { createProduct,
+    deleteProduct,
+    getAllProducts,
+    getFeaturedProducts,
+    getProductsByCategory,
+    getRecommendedProducts,
+    toggleFeaturedProduct
 } from '../controllers/product_controller.js'
-import { admin_route, protect_route } from '../middlewares/auth_middleware.js'
+import { adminRoute, protectRoute } from '../middlewares/auth_middleware.js'
 
 const router = express.Router()
 
-router.get('/', protect_route, admin_route, get_all_products)
+router.get('/', protectRoute, adminRoute, getAllProducts)
 
-router.get('/featured', get_featured_products)
+router.get('/featured', getFeaturedProducts)
 
-router.get('/recommended', recommedned_products)
+router.get('/recommended', getRecommendedProducts)
 
-router.get('/category/:category', get_product_by_category)
+router.get('/category/:category', getProductsByCategory)
 
-router.post('/', protect_route, admin_route, create_product)
+router.post('/', protectRoute, adminRoute, createProduct)
 
-router.patch('/:id', protect_route, admin_route, toggle_featured_products)
+router.patch('/:id', protectRoute, adminRoute, toggleFeaturedProduct)
 
-router.delete('/:id', protect_route, admin_route, delete_product)
+router.delete('/:id', protectRoute, adminRoute, deleteProduct)
 
 export default router

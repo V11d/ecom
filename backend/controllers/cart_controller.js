@@ -1,118 +1,98 @@
-import http_status from 'http-status'
-import Product from '../models/product_model.js'
+import Product from "../models/product_model.js"
+import httpStatus from "http-status"
 
-export const get_all_cart_products = async (req, res) => {
+export const getCartProducts = async (req, res) => {
 
-    try {
-        const products = await Product.find({_id: {$in: req.user.cart_items}})
-        const cart_items = products.map(product => {
-            const item = req.user.cart_items.find((cart_item) => cart_item.id === product.id)
-            return {...product.toJSON(), quantity: item.quantity}
+	try {
+		const products = await Product.find({ _id: { $in: req.user.cartItems } })
+
+		// adding quantity for each product
+		const cartItems = products.map((product) => {
+			const item = req.user.cartItems.find((cartItem) => cartItem.id === product.id)
+			return { ...product.toJSON(), quantity: item.quantity }
+		})
+
+		res.json(cartItems)
+	} catch (error) {
+		console.log(`Error in get cart products ${error.message}`)
+		res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            message: "Server error", error: error.message
         })
-        res.status(http_status.OK).json({
-            status: 'success',
-            message: 'Cart items retrieved successfully',
-            data: cart_items
-        })
-    } catch (error) {
-        console.log(`Error retrieving cart items: ${error.message}`)
-        res.status(http_status.INTERNAL_SERVER_ERROR).json({
-            status: 'error',
-            message: 'Failed to retrieve cart items',
-            error: error.message
-        })
-    }
+	}
 }
 
-export const add_to_cart = async (req, res) => {
+export const addToCart = async (req, res) => {
 
-    const user = req.user
-    const {product_id} = req.body
-    try {
-        const existing_item = user.cart_items.find(item => item.product_id === product_id)
-        if (existing_item) {
-            existing_item.quantity += 1
-        } else {
-            user.cart_items.push({ product_id, quantity: 1 })
-        }
-        await user.save()
-        res.status(http_status.OK).json({
-            status: 'success',
-            message: 'Cart updated successfully',
-            data: user.cart_items
-        })
-    } catch (error) {
-        console.log(`Error updating cart ${error.message}`)
-        res.status(http_status.INTERNAL_SERVER_ERROR).json({
-            status: 'error',
-            message: 'Failed to update cart',
+	try {
+		const { productId } = req.body
+		const user = req.user
+
+		const existingItem = user.cartItems.find((item) => item.id === productId)
+		if (existingItem) {
+			existingItem.quantity += 1
+		} else {
+			user.cartItems.push(productId)
+		}
+
+		await user.save()
+		res.json(user.cartItems)
+	} catch (error) {
+		console.log(`Error in add to cart ${error.message}`)
+		res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            message: "Server error",
             error: error.message
         })
-    }
+	}
 }
 
-export const remove_all_from_cart = async (req, res) => {
+export const removeAllFromCart = async (req, res) => {
 
-    try {
-        const user = req.user
-        const {product_id} = req.body
-        if (!product_id) {
-            user.cart_items = []
-        } else {
-            user.cart_items = user.cart_items.filter(item => item.product_id !== product_id)
-        }
-        await user.save()
-        res.status(http_status.OK).json({
-            status: 'success',
-            message: 'Cart cleared successfully',
-            data: user.cart_items
-        })
-    } catch (error) {
-        console.log(`Error clearing cart ${error.message}`)
-        res.status(http_status.INTERNAL_SERVER_ERROR).json({
-            status: 'error',
-            message: 'Failed to clear cart',
+	try {
+		const { productId } = req.body
+		const user = req.user
+		if (!productId) {
+			user.cartItems = []
+		} else {
+			user.cartItems = user.cartItems.filter((item) => item.id !== productId)
+		}
+		await user.save()
+		res.json(user.cartItems)
+	} catch (error) {
+		res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            message: "Server error",
             error: error.message
         })
-    }
+	}
 }
 
-export const update_quantity = async (req, res) => {
+export const updateQuantity = async (req, res) => {
 
-    try {
-        const {id} = req.params
-        const {quantity} = req.body
-        const user = req.user
-        const existing_item = user.cart_items.find(item => item.product_id === id)
-        if (existing_item) {
-            if (quantity === 0) {
-                user.cart_items = user.cart_items.filter(item => item.product_id !== id)
-                await user.save()
-                return res.status(http_status.OK).json({
-                    status: 'success',
-                    message: 'Item removed from cart',
-                    data: user.cart_items
-                })
-            }
-            existing_item.quantity = quantity
-            await user.save()
-            return res.status(http_status.OK).json({
-                status: 'success',
-                message: 'Cart updated successfully',
-                data: user.cart_items
+	try {
+		const { id: productId } = req.params
+		const { quantity } = req.body
+		const user = req.user
+		const existingItem = user.cartItems.find((item) => item.id === productId)
+
+		if (existingItem) {
+			if (quantity === 0) {
+				user.cartItems = user.cartItems.filter((item) => item.id !== productId)
+				await user.save()
+				return res.json(user.cartItems)
+			}
+
+			existingItem.quantity = quantity
+			await user.save()
+			res.json(user.cartItems)
+		} else {
+			res.status(httpStatus.NOT_FOUND).json({
+                message: "Product not found"
             })
-        } else {
-            return res.status(http_status.NOT_FOUND).json({
-                status: 'error',
-                message: 'Item not found in cart'
-            })
-        }
-    } catch (error) {
-        console.log(`Error updating quantity ${error.message}`)
-        res.status(http_status.INTERNAL_SERVER_ERROR).json({
-            status: 'error',
-            message: 'Failed to update quantity',
+		}
+	} catch (error) {
+		console.log(`Error in update quantity ${error.message}`)
+		res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            message: "Server error",
             error: error.message
         })
-    }
+	}
 }
