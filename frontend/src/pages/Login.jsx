@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router'
 import { Mail, ArrowRight, Loader2, Lock, LogIn } from 'lucide-react'
-import useUserStore from '../stores/useUserStore'
+import { useUserStore } from '../stores/useUserStore'
 
 const Login = () => {
 

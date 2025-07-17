@@ -1,10 +1,21 @@
-import { Route, Routes } from 'react-router'
+import { Navigate, Route, Routes } from 'react-router'
 import Home from './pages/Home'
 import Signup from './pages/Signup'
 import Login from './pages/Login'
 import Navbar from './components/Navbar'
+import LoadingSpinner from './components/LoadingSpinner'
+import { useUserStore } from './stores/useUserStore'
+import { useEffect } from 'react'
+import Admin from './pages/Admin'
 
 const App = () => {
+
+    const { user, checkAuth, checkingAuth } = useUserStore()
+    useEffect(() => {
+        checkAuth()
+    }, [checkAuth])
+    // If checking auth then show loading spinner
+    if (checkingAuth) return <LoadingSpinner />
 
     return (
         <div className='min-h-screen bg-gray-900 text-white relative overflow-hidden'>
@@ -21,8 +32,12 @@ const App = () => {
                 <Navbar />
                 <Routes>
                     <Route path="/" element={<Home />} />
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/signup" element={<Signup />} />
+                    <Route path="/login" element={!user ? <Login /> : <Navigate to={'/'} />} />
+                    <Route path="/signup" element={!user ? <Signup /> : <Navigate to={'/'} />} />
+                    <Route
+                        path='/secret-dashboard'
+                        element={user?.role === 'admin' ? <Admin /> : <Navigate to={'/'} />}
+                    />
                 </Routes>
             </div>
         </div>
